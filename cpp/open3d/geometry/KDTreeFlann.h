@@ -110,6 +110,13 @@ public:
                      int max_nn,
                      std::vector<int> &indices,
                      std::vector<double> &distance2) const;
+                     
+    template <typename T>
+    int SearchNNChain(const T &query,
+                     double radiusLocal,
+                     int chainLength,
+                     std::vector<int> &indices,
+                     std::vector<double> &distance2) const;
 
 private:
     /// \brief Sets the KDTree data from the data provided by the other methods.

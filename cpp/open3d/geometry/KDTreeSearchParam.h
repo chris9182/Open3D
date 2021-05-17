@@ -41,6 +41,7 @@ public:
         Knn = 0,
         Radius = 1,
         Hybrid = 2,
+        NNChain =3
     };
 
 public:
@@ -109,6 +110,27 @@ public:
     double radius_;
     /// At maximum, max_nn neighbors will be searched.
     int max_nn_;
+};
+
+/// \class KDTreeSearchParamNNChain
+///
+/// \brief KDTree search parameters for NNChain KNN and radius search.
+class KDTreeSearchParamNNChain : public KDTreeSearchParam {
+public:
+    /// \brief Default Cosntructor.
+    ///
+    /// \param radiusLocal Specifies the radius of the search.
+    /// \param chainLength Specifies the max number of jumps
+    KDTreeSearchParamNNChain(double radiusLocal, int chainLength)
+        : KDTreeSearchParam(SearchType::NNChain),
+          radiusLocal_(radiusLocal),
+          chainLength_(chainLength) {}
+
+public:
+    /// Search radius.
+    double radiusLocal_;
+    /// At maximum, max_nn neighbors will be searched.
+    int chainLength_;
 };
 
 }  // namespace geometry

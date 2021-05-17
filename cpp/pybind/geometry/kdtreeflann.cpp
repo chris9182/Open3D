@@ -38,7 +38,7 @@ void pybind_kdtreeflann(py::module &m) {
     py::class_<KDTreeSearchParam> kdtreesearchparam(
             m, "KDTreeSearchParam", "Base class for KDTree search parameters.");
     kdtreesearchparam.def("get_search_type", &KDTreeSearchParam::GetSearchType,
-                          "Get the search type (KNN, Radius, Hybrid) for the "
+                          "Get the search type (KNN, Radius, Hybrid, NNChain) for the "
                           "search parameter.");
     docstring::ClassMethodDocInject(m, "KDTreeSearchParam", "get_search_type");
 
@@ -49,6 +49,7 @@ void pybind_kdtreeflann(py::module &m) {
             .value("KNNSearch", KDTreeSearchParam::SearchType::Knn)
             .value("RadiusSearch", KDTreeSearchParam::SearchType::Radius)
             .value("HybridSearch", KDTreeSearchParam::SearchType::Hybrid)
+            .value("NNChainSearch", KDTreeSearchParam::SearchType::NNChain)
             .export_values();
     kdtree_search_param_type.attr("__doc__") = docstring::static_property(
             py::cpp_function([](py::handle arg) -> std::string {
@@ -94,11 +95,11 @@ void pybind_kdtreeflann(py::module &m) {
             .def(py::init<double, int>(), "radius"_a, "max_nn"_a)
             .def("__repr__",
                  [](const KDTreeSearchParamHybrid &param) {
-                     return std::string(
-                                    "KDTreeSearchParamHybrid with "
-                                    "radius = ") +
-                            std::to_string(param.radius_) +
-                            " and max_nn = " + std::to_string(param.max_nn_);
+                   return std::string(
+                           "KDTreeSearchParamHybrid with "
+                           "radius = ") +
+                          std::to_string(param.radius_) +
+                          " and max_nn = " + std::to_string(param.max_nn_);
                  })
             .def_readwrite("radius", &KDTreeSearchParamHybrid::radius_,
                            "Search radius.")
@@ -106,13 +107,36 @@ void pybind_kdtreeflann(py::module &m) {
                     "max_nn", &KDTreeSearchParamHybrid::max_nn_,
                     "At maximum, ``max_nn`` neighbors will be searched.");
 
+    // open3d.geometry.KDTreeSearchParamNNChain
+    py::class_<KDTreeSearchParamNNChain> kdtreesearchparam_nnchain(
+            m, "KDTreeSearchParamNNChain", kdtreesearchparam,
+            "KDTree search parameters for NNChain KNN and radius search.");
+    kdtreesearchparam_nnchain
+            .def(py::init<double, int>(), "radiusLocal"_a, "chainLength"_a)
+            .def("__repr__",
+                 [](const KDTreeSearchParamNNChain &param) {
+                   return std::string(
+                           "KDTreeSearchParamNNChain with "
+                           "radiusLocal = ") +
+                          std::to_string(param.radiusLocal_) +
+                          " and chainLength_ = " + std::to_string(param.chainLength_);
+                 })
+            .def_readwrite("radiusLocal", &KDTreeSearchParamNNChain::radiusLocal_,
+                           "Search radius.")
+            .def_readwrite(
+                    "chainLength", &KDTreeSearchParamNNChain::chainLength_,
+                    "At maximum, ``chainLength`` steps will be taken");
+
     // open3d.geometry.KDTreeFlann
     static const std::unordered_map<std::string, std::string>
             map_kd_tree_flann_method_docs = {
                     {"query", "The input query point."},
                     {"radius", "Search radius."},
                     {"max_nn",
-                     "At maximum, ``max_nn`` neighbors will be searched."},
+                               "At maximum, ``max_nn`` neighbors will be searched."},
+                    {"radiusLocal", "Search radiusLocal."},
+                    {"chainLength",
+                               "At maximum, ``chainLength`` steps will be taken."},
                     {"knn", "``knn`` neighbors will be searched."},
                     {"feature", "Feature data."},
                     {"data", "Matrix data."}};
@@ -191,16 +215,30 @@ void pybind_kdtreeflann(py::module &m) {
                     "search_hybrid_vector_3d",
                     [](const KDTreeFlann &tree, const Eigen::Vector3d &query,
                        double radius, int max_nn) {
-                        std::vector<int> indices;
-                        std::vector<double> distance2;
-                        int k = tree.SearchHybrid(query, radius, max_nn,
-                                                  indices, distance2);
-                        if (k < 0)
-                            throw std::runtime_error(
-                                    "search_hybrid_vector_3d() error!");
-                        return std::make_tuple(k, indices, distance2);
+                      std::vector<int> indices;
+                      std::vector<double> distance2;
+                      int k = tree.SearchHybrid(query, radius, max_nn,
+                                                indices, distance2);
+                      if (k < 0)
+                          throw std::runtime_error(
+                                  "search_hybrid_vector_3d() error!");
+                      return std::make_tuple(k, indices, distance2);
                     },
                     "query"_a, "radius"_a, "max_nn"_a)
+            .def(
+                    "search_nnchain_vector_3d",
+                    [](const KDTreeFlann &tree, const Eigen::Vector3d &query,
+                       double radiusLocal, int chainLength) {
+                      std::vector<int> indices;
+                      std::vector<double> distance2;
+                      int k = tree.SearchNNChain(query, radiusLocal, chainLength,
+                                                indices, distance2);
+                      if (k < 0)
+                          throw std::runtime_error(
+                                  "search_nnchain_vector_3d() error!");
+                      return std::make_tuple(k, indices, distance2);
+                    },
+                    "query"_a, "radiusLocal"_a, "chainLength"_a)
             .def(
                     "search_vector_xd",
                     [](const KDTreeFlann &tree, const Eigen::VectorXd &query,
@@ -254,10 +292,29 @@ void pybind_kdtreeflann(py::module &m) {
                                     "search_hybrid_vector_xd() error!");
                         return std::make_tuple(k, indices, distance2);
                     },
-                    "query"_a, "radius"_a, "max_nn"_a);
+                    "query"_a, "radius"_a, "max_nn"_a)
+            .def(
+                    "search_nnchain_vector_xd",
+                    [](const KDTreeFlann &tree, const Eigen::VectorXd &query,
+                       double radiusLocal, int chainLength) {
+                      std::vector<int> indices;
+                      std::vector<double> distance2;
+                      int k = tree.SearchNNChain(query, radiusLocal, chainLength,
+                                                indices, distance2);
+                      if (k < 0)
+                          throw std::runtime_error(
+                                  "search_nnchain_vector_xd() error!");
+                      return std::make_tuple(k, indices, distance2);
+                    },
+                    "query"_a, "radiusLocal"_a, "chainLength"_a)
+            ;
     docstring::ClassMethodDocInject(m, "KDTreeFlann", "search_hybrid_vector_3d",
                                     map_kd_tree_flann_method_docs);
     docstring::ClassMethodDocInject(m, "KDTreeFlann", "search_hybrid_vector_xd",
+                                    map_kd_tree_flann_method_docs);
+    docstring::ClassMethodDocInject(m, "KDTreeFlann", "search_nnchain_vector_3d",
+                                    map_kd_tree_flann_method_docs);
+    docstring::ClassMethodDocInject(m, "KDTreeFlann", "search_nnchain_vector_xd",
                                     map_kd_tree_flann_method_docs);
     docstring::ClassMethodDocInject(m, "KDTreeFlann", "search_knn_vector_3d",
                                     map_kd_tree_flann_method_docs);

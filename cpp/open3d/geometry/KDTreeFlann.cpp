@@ -102,6 +102,11 @@ int KDTreeFlann::Search(const T &query,
                     query, ((const KDTreeSearchParamHybrid &)param).radius_,
                     ((const KDTreeSearchParamHybrid &)param).max_nn_, indices,
                     distance2);
+        case KDTreeSearchParam::SearchType::NNChain:
+            return SearchNNChain(
+                    query, ((const KDTreeSearchParamNNChain &)param).radiusLocal_,
+                    ((const KDTreeSearchParamNNChain &)param).chainLength_, indices,
+                    distance2);
         default:
             return -1;
     }
@@ -186,6 +191,88 @@ int KDTreeFlann::SearchHybrid(const T &query,
     return k;
 }
 
+template <typename T>
+int KDTreeFlann::SearchNNChain(const T &query,
+                              double radiusLocal,
+                              int chainLength,
+                              std::vector<int> &indices,
+                              std::vector<double> &distance2) const {
+
+    // This is optimized code for heavily repeated search.
+    // Since max_nn is not given, we let flann to do its own memory management.
+    // Other flann::Index::radiusSearch() implementations lose performance due
+    // to memory management and CPU caching.
+    if (data_.empty() || dataset_size_ <= 0 ||
+        size_t(query.rows()) != dimension_) {
+        return -1;
+    }
+    double* initial=(double *)query.data();
+    flann::Matrix<double> query_flann(initial, 1, dimension_);
+    flann::SearchParams param(-1, 0.0);
+    param.max_neighbors = -1;
+    std::vector<std::vector<int>> total_indices_vec(1);
+    std::vector<std::vector<double>> total_dists_vec(1);
+    int k = flann_index_->radiusSearch(query_flann, total_indices_vec, total_dists_vec,
+                                              float(radiusLocal * radiusLocal*chainLength*chainLength), param);
+    std::vector<int> validIndices(1);
+
+
+    for(int i=0;i<chainLength;++i) {
+        double *nextData;
+        int vNum = 0;
+
+        if (validIndices.size()<1) {
+            vNum=1;
+            nextData=new double[3];
+            nextData[0]=initial[0];
+            nextData[1]=initial[1];
+            nextData[2]=initial[2];
+        } else {
+            nextData = new double[validIndices.size() * 3];
+            for (int ind : validIndices) {
+                int vInd = vNum * 3;
+                int baseInd = ind * 3;
+                nextData[vInd] = data_[baseInd + 0];
+                nextData[vInd + 1] = data_[baseInd + 1];
+                nextData[vInd + 2] = data_[baseInd + 2];
+                ++vNum;
+            }
+        }
+        flann::Matrix<double> query_flannNext(nextData, vNum, dimension_);
+        std::vector<std::vector<int>> indices_vec(1);
+        std::vector<std::vector<double>> dists_vec(1);
+
+        k = flann_index_->radiusSearch(query_flannNext, indices_vec, dists_vec,
+                                           float(radiusLocal * radiusLocal), param);
+
+        for(std::vector<int> vec:indices_vec)
+            for(int ind:vec)
+                if (std::find(validIndices.begin(),
+                              validIndices.end(),
+                              ind) == validIndices.end())
+                    validIndices.push_back(ind);
+        delete [] nextData;
+    }
+
+    std::vector<int> result_indices_vec(1);
+    std::vector<double> result_dists_vec(1);
+
+    for(int ind:validIndices){
+        auto it=std::find(total_indices_vec[0].begin(),
+                          total_indices_vec[0].end(),
+                          ind);
+        if (it != total_indices_vec[0].end()){
+            int pos = it - total_indices_vec[0].begin();
+            result_indices_vec.push_back(total_indices_vec[0][pos]);
+            result_dists_vec.push_back(total_dists_vec[0][pos]);
+        }
+    }
+
+    indices = result_indices_vec;
+    distance2 = result_dists_vec;
+    return k;
+}
+
 bool KDTreeFlann::SetRawData(const Eigen::Map<const Eigen::MatrixXd> &data) {
     dimension_ = data.rows();
     dataset_size_ = data.cols();
@@ -225,6 +312,13 @@ template int KDTreeFlann::SearchHybrid<Eigen::Vector3d>(
         int max_nn,
         std::vector<int> &indices,
         std::vector<double> &distance2) const;
+template int KDTreeFlann::SearchNNChain<Eigen::Vector3d>(
+        const Eigen::Vector3d &query,
+        double radiusLocal,
+        int chainLength,
+        std::vector<int> &indices,
+        std::vector<double> &distance2) const;
+        
 
 template int KDTreeFlann::Search<Eigen::VectorXd>(
         const Eigen::VectorXd &query,
@@ -245,6 +339,12 @@ template int KDTreeFlann::SearchHybrid<Eigen::VectorXd>(
         const Eigen::VectorXd &query,
         double radius,
         int max_nn,
+        std::vector<int> &indices,
+        std::vector<double> &distance2) const;
+template int KDTreeFlann::SearchNNChain<Eigen::VectorXd>(
+        const Eigen::VectorXd &query,
+        double radiusLocal,
+        int chainLength,
         std::vector<int> &indices,
         std::vector<double> &distance2) const;
 
