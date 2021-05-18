@@ -67,6 +67,12 @@ int main(int argc, char *argv[]) {
     utility::SetVerbosityLevel(utility::VerbosityLevel::Debug);
 
     auto pcd = io::CreatePointCloudFromFile(argv[1]);
+    std::cout<<argv[1];
+    pcd->EstimateNormals(
+            open3d::geometry::KDTreeSearchParamNNChain(0.5, 3));
+
+    //pcd->EstimateNormals(
+    //        open3d::geometry::KDTreeSearchParamRadius(0.5));
     {
         utility::ScopeTimer timer("FPFH estimation with Radius 0.25");
         // for (int i = 0; i < 20; i++) {

@@ -214,8 +214,9 @@ int KDTreeFlann::SearchNNChain(const T &query,
     std::vector<std::vector<double>> total_dists_vec(1);
     int k = flann_index_->radiusSearch(query_flann, total_indices_vec, total_dists_vec,
                                               float(radiusLocal * radiusLocal*chainLength*chainLength), param);
-    std::vector<int> validIndices(1);
 
+    std::vector<int> validIndices(1);
+    std::vector<int> next_indices_vec;
 
     for(int i=0;i<chainLength;++i) {
         double *nextData;
@@ -228,8 +229,9 @@ int KDTreeFlann::SearchNNChain(const T &query,
             nextData[1]=initial[1];
             nextData[2]=initial[2];
         } else {
-            nextData = new double[validIndices.size() * 3];
-            for (int ind : validIndices) {
+            if(next_indices_vec.size()<1)break;
+            nextData = new double[next_indices_vec.size() * 3];
+            for (int ind : next_indices_vec) {
                 int vInd = vNum * 3;
                 int baseInd = ind * 3;
                 nextData[vInd] = data_[baseInd + 0];
@@ -242,15 +244,18 @@ int KDTreeFlann::SearchNNChain(const T &query,
         std::vector<std::vector<int>> indices_vec(1);
         std::vector<std::vector<double>> dists_vec(1);
 
-        k = flann_index_->radiusSearch(query_flannNext, indices_vec, dists_vec,
+        flann_index_->radiusSearch(query_flannNext, indices_vec, dists_vec,
                                            float(radiusLocal * radiusLocal), param);
 
+        next_indices_vec=std::vector<int>(1);
         for(std::vector<int> vec:indices_vec)
             for(int ind:vec)
                 if (std::find(validIndices.begin(),
                               validIndices.end(),
-                              ind) == validIndices.end())
+                              ind) == validIndices.end()){
                     validIndices.push_back(ind);
+                    next_indices_vec.push_back(ind);
+                }
         delete [] nextData;
     }
 
@@ -270,7 +275,7 @@ int KDTreeFlann::SearchNNChain(const T &query,
 
     indices = result_indices_vec;
     distance2 = result_dists_vec;
-    return k;
+    return result_indices_vec.size();
 }
 
 bool KDTreeFlann::SetRawData(const Eigen::Map<const Eigen::MatrixXd> &data) {
