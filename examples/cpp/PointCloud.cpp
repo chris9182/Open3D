@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
     auto pcd = io::CreatePointCloudFromFile(argv[1]);
     std::cout<<argv[1];
     pcd->EstimateNormals(
-            open3d::geometry::KDTreeSearchParamNNChain(0.5, 3));
+            open3d::geometry::KDTreeSearchParamNNChain(1, 3));
 
     //pcd->EstimateNormals(
     //        open3d::geometry::KDTreeSearchParamRadius(0.5));

@@ -212,17 +212,17 @@ int KDTreeFlann::SearchNNChain(const T &query,
     param.max_neighbors = -1;
     std::vector<std::vector<int>> total_indices_vec(1);
     std::vector<std::vector<double>> total_dists_vec(1);
-    int k = flann_index_->radiusSearch(query_flann, total_indices_vec, total_dists_vec,
+    flann_index_->radiusSearch(query_flann, total_indices_vec, total_dists_vec,
                                               float(radiusLocal * radiusLocal*chainLength*chainLength), param);
 
     std::vector<int> validIndices(1);
-    std::vector<int> next_indices_vec;
+    std::vector<int> next_indices_vec(1);
 
     for(int i=0;i<chainLength;++i) {
         double *nextData;
         int vNum = 0;
 
-        if (validIndices.size()<1) {
+        if (i<1) {
             vNum=1;
             nextData=new double[3];
             nextData[0]=initial[0];
@@ -247,7 +247,7 @@ int KDTreeFlann::SearchNNChain(const T &query,
         flann_index_->radiusSearch(query_flannNext, indices_vec, dists_vec,
                                            float(radiusLocal * radiusLocal), param);
 
-        next_indices_vec=std::vector<int>(1);
+        next_indices_vec.clear();
         for(std::vector<int> vec:indices_vec)
             for(int ind:vec)
                 if (std::find(validIndices.begin(),
